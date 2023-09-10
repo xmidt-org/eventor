@@ -1,0 +1,28 @@
+---
+linters-settings:
+  misspell:
+    locale: US
+  errorlint:
+    # Report non-wrapping error creation using fmt.Errorf
+    errorf: false
+
+linters:
+  enable:
+    - bodyclose
+    - dupl
+    - errorlint
+    - funlen
+    - goconst
+    - gosec
+    - misspell
+    - unconvert
+    - prealloc
+    - errcheck
+    - ineffassign
+
+issues:
+  exclude-rules:
+    - path: _test.go
+      linters:
+        - dupl
+        - funlen
