@@ -10,7 +10,7 @@ A simple library to make the observer pattern simpler to implement.
 
 ## Summary
 
-`eventor`` provides a package to help manage and visit a list of listeners interested
+`eventor` provides a package to help manage and visit a list of listeners interested
 in an event.
 
 ## Code of Conduct
