@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 Comcast Cable Communications Management, LLC
+// SPDX-FileCopyrightText: 2023-2024 Comcast Cable Communications Management, LLC
 // SPDX-License-Identifier: Apache-2.0
 
 package eventor
@@ -8,13 +8,6 @@ import (
 	"sync"
 )
 
-// CancelFunc removes the listener it's associated with and cancels any
-// future events sent to that listener.
-//
-// A CancelFunc is idempotent:  after the first invocation, calling this
-// closure will have no effect.
-type CancelFunc func()
-
 // Eventor is a generic container of Eventor that is safe for concurrent access
 // and concurrent dispatch of events through the visit method.
 type Eventor[T any] struct {
@@ -23,7 +16,12 @@ type Eventor[T any] struct {
 }
 
 // Cancel creates an idempotent closure that removes the given linked list element.
-func (l *Eventor[T]) Cancel(e *list.Element) CancelFunc {
+//
+// The returned cancel func removes the listener it's associated with and
+// cancels any future events sent to that listener.  It is safe to call the
+// cancel func multiple times, as it is idempotent and additional calls will
+// have no effect.
+func (l *Eventor[T]) Cancel(e *list.Element) (cancel func()) {
 	return func() {
 		l.lock.Lock()
 		defer l.lock.Unlock()
@@ -38,9 +36,11 @@ func (l *Eventor[T]) Cancel(e *list.Element) CancelFunc {
 //
 // This method is atomic with respect to Visit.
 //
-// The returned closure is idempotent:  after the first invocation, calling
-// this closure will have no effect.
-func (l *Eventor[T]) Add(listener T) CancelFunc {
+// The returned cancel func removes the listener it's associated with and
+// cancels any future events sent to that listener.  It is safe to call the
+// cancel func multiple times, as it is idempotent and additional calls will
+// have no effect.
+func (l *Eventor[T]) Add(listener T) (cancel func()) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
@@ -65,4 +65,16 @@ func (l *Eventor[T]) Visit(f func(T)) {
 	for e := l.listeners.Front(); e != nil; e = e.Next() {
 		f(e.Value.(T))
 	}
+}
+
+// Len returns the number of listeners in the list.
+func (l *Eventor[T]) Len() int {
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+
+	if l.listeners == nil {
+		return 0
+	}
+
+	return l.listeners.Len()
 }

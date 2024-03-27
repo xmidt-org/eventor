@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2023 Comcast Cable Communications Management, LLC
+// SPDX-FileCopyrightText: 2023-2024 Comcast Cable Communications Management, LLC
 // SPDX-License-Identifier: Apache-2.0
 
 package eventor
@@ -29,8 +29,11 @@ func TestBasicUseCase(t *testing.T) {
 	var c listenerType
 
 	// Add two of them to the Eventor.
+	assert.Equal(0, eator.Len())
 	cancelA := eator.Add(&a)
+	assert.Equal(1, eator.Len())
 	cancelB := eator.Add(&b)
+	assert.Equal(2, eator.Len())
 
 	// Show that we can visit the Eventor and the two listeners we added are visited.
 	var count int
