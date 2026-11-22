@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2023-2024 Comcast Cable Communications Management, LLC
 // SPDX-License-Identifier: Apache-2.0
 
+// Package eventor provides Eventor, a generic, concurrency-safe set of
+// listeners that events can be dispatched to.
 package eventor
 
 import (
