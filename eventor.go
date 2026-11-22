@@ -52,19 +52,41 @@ func (l *Eventor[T]) Add(listener T) (cancel func()) {
 	return l.Cancel(e)
 }
 
-// Visit applies the given closure to each listener in the list.  This method
-// is atomic with respect to Add.
+// Visit applies the given closure to each listener in the list.
+//
+// The listeners are snapshotted at the start of the call, and f is called
+// without any lock held.  As a result:
+//
+//   - A listener added during a visit is not called in that visit.
+//   - A listener canceled during a visit may still be called once in that
+//     visit if it had not been reached yet.
+//   - Listeners may safely call Add, a cancel func, or Visit from inside f.
+//   - A slow f does not block Add or cancel on other goroutines.
 func (l *Eventor[T]) Visit(f func(T)) {
-	l.lock.RLock()
-	defer l.lock.RUnlock()
-
-	if l.listeners == nil || f == nil {
+	if f == nil {
 		return
 	}
 
-	for e := l.listeners.Front(); e != nil; e = e.Next() {
-		f(e.Value.(T))
+	for _, listener := range l.snapshot() {
+		f(listener)
 	}
+}
+
+// snapshot returns a copy of the current listeners, or nil if there are none.
+func (l *Eventor[T]) snapshot() []T {
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+
+	if l.listeners == nil || l.listeners.Len() == 0 {
+		return nil
+	}
+
+	listeners := make([]T, 0, l.listeners.Len())
+	for e := l.listeners.Front(); e != nil; e = e.Next() {
+		listeners = append(listeners, e.Value.(T))
+	}
+
+	return listeners
 }
 
 // Len returns the number of listeners in the list.
