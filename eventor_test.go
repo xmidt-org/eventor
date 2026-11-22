@@ -4,7 +4,9 @@
 package eventor
 
 import (
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -84,4 +86,165 @@ func TestBasicUseCase(t *testing.T) {
 	cancelA()
 	cancelB()
 	cancelC()
+}
+
+// runWithTimeout runs f in a goroutine and fails the test if it doesn't finish
+// within a second, so a deadlock regression fails fast instead of hanging CI.
+func runWithTimeout(t *testing.T, f func()) {
+	t.Helper()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		f()
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out: probable deadlock")
+	}
+}
+
+func callIt(fn func()) { fn() }
+
+func TestVisitListenerCancelsSelf(t *testing.T) {
+	assert := assert.New(t)
+
+	var eator Eventor[func()]
+
+	var calls int
+	var cancel func()
+	cancel = eator.Add(func() {
+		calls++
+		cancel()
+	})
+	eator.Add(func() {})
+	assert.Equal(2, eator.Len())
+
+	runWithTimeout(t, func() {
+		eator.Visit(callIt)
+		eator.Visit(callIt)
+	})
+
+	assert.Equal(1, calls)
+	assert.Equal(1, eator.Len())
+}
+
+func TestVisitListenerAddsListener(t *testing.T) {
+	assert := assert.New(t)
+
+	var eator Eventor[func()]
+
+	var added bool
+	var newCalls int
+	eator.Add(func() {
+		if !added {
+			added = true
+			eator.Add(func() { newCalls++ })
+		}
+	})
+
+	runWithTimeout(t, func() { eator.Visit(callIt) })
+	assert.Equal(0, newCalls, "listener added during a visit must not be called in that visit")
+	assert.Equal(2, eator.Len())
+
+	runWithTimeout(t, func() { eator.Visit(callIt) })
+	assert.Equal(1, newCalls, "listener added during a visit must be called in the next visit")
+}
+
+func TestVisitNestedWithPendingWriter(t *testing.T) {
+	assert := assert.New(t)
+
+	var eator Eventor[func()]
+
+	var nested bool
+	var nestedCalls int
+	addDone := make(chan struct{})
+	eator.Add(func() {
+		if nested {
+			nestedCalls++
+			return
+		}
+		nested = true
+
+		// Get a writer queued on the lock, then visit again from inside the
+		// callback. With a lock held across callbacks, the nested read lock
+		// waits behind the writer and the writer waits behind the outer read.
+		go func() {
+			defer close(addDone)
+			eator.Add(func() {})
+		}()
+		time.Sleep(10 * time.Millisecond)
+
+		eator.Visit(callIt)
+	})
+
+	runWithTimeout(t, func() {
+		eator.Visit(callIt)
+		<-addDone
+	})
+
+	assert.Equal(1, nestedCalls)
+	assert.Equal(2, eator.Len())
+}
+
+func TestVisitCancelOtherDuringVisit(t *testing.T) {
+	assert := assert.New(t)
+
+	var eator Eventor[func()]
+
+	var calls2 int
+	var cancel2 func()
+	eator.Add(func() { cancel2() })
+	cancel2 = eator.Add(func() { calls2++ })
+
+	// Visit snapshots the listeners, so listener 2 is still called in the
+	// pass in which it was canceled...
+	runWithTimeout(t, func() { eator.Visit(callIt) })
+	assert.Equal(1, calls2)
+	assert.Equal(1, eator.Len())
+
+	// ...but not in any later pass.
+	runWithTimeout(t, func() { eator.Visit(callIt) })
+	assert.Equal(1, calls2)
+}
+
+func TestConcurrentAddCancelVisit(t *testing.T) {
+	const (
+		writers    = 8
+		visitors   = 8
+		iterations = 200
+	)
+
+	var eator Eventor[func()]
+	var wg sync.WaitGroup
+
+	runWithTimeout(t, func() {
+		for i := 0; i < writers; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < iterations; j++ {
+					cancel := eator.Add(func() {})
+					cancel()
+				}
+			}()
+		}
+
+		for i := 0; i < visitors; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < iterations; j++ {
+					eator.Visit(callIt)
+					_ = eator.Len()
+				}
+			}()
+		}
+
+		wg.Wait()
+	})
+
+	assert.Equal(t, 0, eator.Len())
 }
