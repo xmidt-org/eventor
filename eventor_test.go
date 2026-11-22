@@ -21,7 +21,7 @@ func TestBasicUseCase(t *testing.T) {
 	eator := Eventor[*listenerType]{}
 
 	// Show that nothing happens if we visit an empty Eventor.
-	eator.Visit(func(i *listenerType) {
+	eator.Visit(func(_ *listenerType) {
 		assert.Fail("should not be called")
 	})
 
@@ -39,7 +39,7 @@ func TestBasicUseCase(t *testing.T) {
 
 	// Show that we can visit the Eventor and the two listeners we added are visited.
 	var count int
-	eator.Visit(func(i *listenerType) {
+	eator.Visit(func(_ *listenerType) {
 		count++
 	})
 	assert.Equal(2, count)
@@ -47,7 +47,7 @@ func TestBasicUseCase(t *testing.T) {
 	// Show that we can add a nil listener and that it is visited.
 	cancelD := eator.Add(nil)
 	count = 0
-	eator.Visit(func(i *listenerType) {
+	eator.Visit(func(_ *listenerType) {
 		count++
 	})
 	assert.Equal(3, count)
@@ -59,7 +59,7 @@ func TestBasicUseCase(t *testing.T) {
 	// Show that we can visit the Eventor and all three listeners are visited.
 	cancelC := eator.Add(&c)
 	count = 0
-	eator.Visit(func(i *listenerType) {
+	eator.Visit(func(_ *listenerType) {
 		count++
 	})
 	assert.Equal(3, count)
@@ -67,7 +67,7 @@ func TestBasicUseCase(t *testing.T) {
 	// Show that we can cancel a listener and it is no longer visited.
 	cancelB()
 	count = 0
-	eator.Visit(func(i *listenerType) {
+	eator.Visit(func(_ *listenerType) {
 		count++
 	})
 	assert.Equal(2, count)
@@ -78,7 +78,7 @@ func TestBasicUseCase(t *testing.T) {
 	// Show that we can cancel a listener and it is no longer visited.
 	cancelA()
 	cancelC()
-	eator.Visit(func(i *listenerType) {
+	eator.Visit(func(_ *listenerType) {
 		assert.Fail("should not be called")
 	})
 

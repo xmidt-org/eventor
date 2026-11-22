@@ -1,8 +1,13 @@
 # SPDX-FileCopyrightText: 2023 Comcast Cable Communications Management, LLC
 # SPDX-License-Identifier: Apache-2.0
+---
 version: "2"
+
 linters:
+  # standard = errcheck, govet, ineffassign, staticcheck, unused
+  default: standard
   enable:
+    # xmidt-org baseline
     - bodyclose
     - dupl
     - errorlint
@@ -12,31 +17,126 @@ linters:
     - misspell
     - prealloc
     - unconvert
+
+    # correctness
+    - asciicheck
+    - bidichk
+    - durationcheck
+    - makezero
+    - nilerr
+    - nilnil
+    - predeclared
+    - reassign
+    - unparam
+    - wastedassign
+
+    # concurrency / goroutines in tests
+    - thelper
+    - tparallel
+
+    # style and API hygiene for a public library
+    - dupword
+    - errname
+    - gocritic
+    - godot
+    - mirror
+    - nakedret
+    - nolintlint
+    - perfsprint
+    - revive
+    - testifylint
+    - usestdlibvars
+
   settings:
     errorlint:
       errorf: false
+    funlen:
+      lines: 80
+      statements: 50
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+      disabled-checks:
+        - hugeParam  # generic code; false positives on type params
+        - whyNoLint  # covered by nolintlint
+        - importShadow  # `assert := assert.New(t)` is the house testify idiom
+    godot:
+      scope: declarations
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment  # struct layout churn for no real gain here
     misspell:
       locale: US
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: range
+        - name: receiver-naming
+        - name: indent-error-flow
+        - name: errorf
+        - name: empty-block
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: unreachable-code
+        - name: redefines-builtin-id
+    staticcheck:
+      checks:
+        - all
+
   exclusions:
     generated: lax
+    # "comments" is intentionally not listed: this is a public library, so
+    # missing or malformed doc comments on exported identifiers should fail.
     presets:
-      - comments
       - common-false-positives
       - legacy
       - std-error-handling
     rules:
-      - linters:
+      - path: _test.go
+        linters:
           - dupl
           - funlen
-        path: _test.go
+          - goconst
+          - gosec
     paths:
       - third_party$
       - builtin$
       - examples$
+
 formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true
+    goimports:
+      local-prefixes:
+        - github.com/xmidt-org/eventor
   exclusions:
     generated: lax
     paths:
       - third_party$
       - builtin$
       - examples$
+
+issues:
+  # Report everything; the defaults hide repeats.
+  max-issues-per-linter: 0
+  max-same-issues: 0
